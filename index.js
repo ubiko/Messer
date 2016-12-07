@@ -3,6 +3,7 @@
 /* imports */
 var login = require("facebook-chat-api")
 var repl = require("repl")
+var blessed = require("blessed")
 
 /* Command type constants */
 var commandEnum = {
@@ -16,6 +17,43 @@ var commandEnum = {
 var api
 var user = {} // store for user details
 var lastThread = null
+
+// Create a screen object.
+var screen = blessed.screen({
+  smartCSR: true
+});
+
+// Create a box perfectly centered horizontally and vertically.
+var box = blessed.box({
+  top: 'center',
+  left: 'center',
+  width: '50%',
+  height: '50%',
+  // content: 'Hello {bold}world{/bold}!',
+  tags: true,
+  border: {
+    type: 'line'
+  },
+  style: {
+    fg: 'white',
+    bg: 'magenta',
+    border: {
+      fg: '#f0f0f0'
+    },
+    hover: {
+      bg: 'green'
+    }
+  }
+});
+
+// Append our box to the screen.
+screen.append(box);
+
+// Focus our element.
+box.focus();
+
+// Render the screen.
+screen.render();
 
 /* Initialisation */
 if (process.argv.length < 3) {
@@ -181,29 +219,36 @@ function processCommand(rawCommand, cb) {
 	var commandHandler = commands[args[0]]
 
 	if (!commandHandler) {
-		console.error("Invalid command - check your syntax")
+		box.setContent("Invalid command - check your syntax")
 	} else {
 		commandHandler(rawCommand)
 	}
 
 	return cb(null)
 }
-
+box.on('click', function(data) {
+  box.setContent('{center}Some different {red-fg}content{/red-fg}.{/center}');
+  screen.render();
+});
 /**
  * Initialise Messer
  */
 function authenticate(credentials) {
 	// Where credentials is the user's credentials as an object, fields `email` and `password
 	login(credentials, function (err, fbApi) {
-		if (err) return console.error(err)
+		if (err) return box.setContent("{red-fg}"+err+"{/red-fg}")
 
 		api = fbApi // assign to global variable
 		api.setOptions({ logLevel: "silent" })
 
-		console.info("Logged in as " + credentials.email)
+		// console.info("Logged in as " + credentials.email)
+		box.setContent("Logged in as " + credentials.email)
+	  screen.render();
 
 		getUserDetails(api, user).then(function () {
-			console.info("Listening for incoming messages...")
+
+			box.content += "Listening for incoming messages..."
+			// console.info("Listening for incoming messages...")
 
 			// listen for incoming messages
 			api.listen(function (err, message) {
@@ -215,10 +260,17 @@ function authenticate(credentials) {
 			repl.start({
 				ignoreUndefined: true,
 				eval: function (cmd, context, filename, callback) {
+
 					processCommand(cmd, callback)
 				}
+
 			})
 		})
 
 	})
 }
+
+// Quit on Escape, q, or Control-C.
+screen.key(['escape', 'q', 'C-c'], function(ch, key) {
+  return process.exit(0);
+});
